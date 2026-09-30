@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto Cost Basis</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5e6773; --line: #e2e5ea;
+  --accent: #2f5bea; --accent-ink: #ffffff; --good: #1a7f4b; --bad: #c0392b; --warn: #a86400;
+  --warn-bg: #fff4e0; --chip: #eef1f5; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418; --panel: #1a1e24; --ink: #e8eaed; --muted: #9aa3ad; --line: #2c323a;
+    --accent: #6d8cff; --accent-ink: #0b0d10; --good: #4cc38a; --bad: #ff7b6e; --warn: #f0b35a;
+    --warn-bg: #2d2413; --chip: #252b33;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 24px; padding: 14px 24px; background: var(--panel);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: 0; padding: 8px 14px; border-radius: 8px; color: var(--muted);
+  font: inherit; font-weight: 600; cursor: pointer; }
+nav button.on { background: var(--chip); color: var(--ink); }
+nav .n { display: inline-block; width: 20px; height: 20px; border-radius: 50%; background: var(--line);
+  color: var(--ink); font-size: 12px; line-height: 20px; text-align: center; margin-right: 6px; }
+nav button.on .n { background: var(--accent); color: var(--accent-ink); }
+main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 60px; }
+section.tab { display: none; } section.tab.on { display: block; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; margin: 0 0 4px; } .card p.sub { margin: 0 0 12px; color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+input[type=text], input[type=password], input[type=search], select, textarea {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; }
+textarea { width: 100%; min-height: 110px; font-family: var(--mono); font-size: 12px; }
+button.btn { font: inherit; font-weight: 600; border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.btn.danger { color: var(--bad); }
+button.btn:disabled { opacity: .5; cursor: default; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+.chip.off { color: var(--muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+th.sort { cursor: pointer; } th.sort:hover { color: var(--ink); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.tablewrap { overflow-x: auto; }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 6px; background: var(--chip); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.stat .k { color: var(--muted); font-size: 12px; } .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat.warn { border-color: var(--warn); background: var(--warn-bg); }
+.stat .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.progress { height: 8px; background: var(--chip); border-radius: 99px; overflow: hidden; margin: 10px 0 6px; }
+.progress > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+pre.log { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; max-height: 260px;
+  overflow: auto; font-size: 12px; white-space: pre-wrap; margin: 8px 0 0; }
+.banner { display: none; background: var(--warn-bg); color: var(--warn); padding: 8px 24px; font-weight: 600; }
+.banner.on { display: block; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } main { padding: 16px; } header { padding: 12px 16px; } }
+.subtabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.subtabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; font: inherit;
+  color: var(--muted); cursor: pointer; font-weight: 600; }
+.subtabs button.on { color: var(--ink); border-color: var(--accent); }
+.pager { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; color: var(--muted); }
+.muted { color: var(--muted); } .small { font-size: 12px; }
+a { color: var(--accent); }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 10px 0; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--ink); color: var(--bg); padding: 10px 16px;
+  border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 400px; }
+.toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Crypto Cost Basis</h1>
+  <nav>
+    <button data-tab="wallets" class="on"><span class="n">1</span>Wallets</button>
+    <button data-tab="fetch"><span class="n">2</span>Fetch</button>
+    <button data-tab="results"><span class="n">3</span>Results</button>
+  </nav>
+</header>
+<div class="banner" id="banner"></div>
+<main>
+
+<!-- ============ WALLETS ============ -->
+<section class="tab on" id="tab-wallets">
+  <div class="grid2">
+    <div class="card">
+      <h2>Etherscan API key</h2>
+      <p class="sub">One free key reads Ethereum and its L2s. Get it at etherscan.io/myapikey. Stored only in <code>data/settings.json</code> on this computer.</p>
+      <div class="row">
+        <input type="password" id="key" placeholder="Paste API key" style="flex:1; min-width: 200px">
+        <button class="btn primary" id="saveKey">Save</button>
+      </div>
+      <div class="small muted" id="keyState" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>Add addresses</h2>
+      <p class="sub">Paste one per line, any chain. Tip: paste your full list as “Not sure”, then paste the ones you know are yours as “Mine”. Pasting an address again updates its status.</p>
+      <textarea id="paste" placeholder="0x…&#10;8eUx…&#10;celestia1…"></textarea>
+      <div class="row" style="margin-top:8px">
+        <label class="small">Add as <select id="importRole">
+          <option value="mine">Mine</option><option value="unsure">Not sure</option><option value="not_mine">Not mine</option></select></label>
+        <button class="btn primary" id="importBtn">Add</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Your addresses</h2>
+    <p class="sub">Only addresses marked <b>Mine</b> are read. Mark exchange deposit addresses and other people's wallets as “Not mine”: treating an exchange deposit address as your wallet breaks transfer matching. “Not sure” addresses are left out until you decide.</p>
+    <div class="chips" id="kindChips"></div>
+    <div class="row" style="margin-bottom:10px">
+      <input type="search" id="wq" placeholder="Search address or label" style="flex:1; min-width:180px">
+      <select id="wkind"><option value="">All types</option></select>
+      <select id="wrole"><option value="">Any status</option><option value="mine">Mine</option><option value="unsure">Not sure</option><option value="not_mine">Not mine</option></select>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <span class="small muted" id="selCount">0 selected</span>
+      <button class="btn" data-bulk="mine">Mark mine</button>
+      <button class="btn" data-bulk="unsure">Mark not sure</button>
+      <button class="btn" data-bulk="not_mine">Mark not mine</button>
+      <button class="btn danger" data-bulk="delete">Remove</button>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th><input type="checkbox" id="selAll"></th><th>Address</th><th>Type</th><th>Label</th><th>Status</th></tr></thead>
+      <tbody id="wbody"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============ FETCH ============ -->
+<section class="tab" id="tab-fetch">
+  <div class="card">
+    <h2>Read the blockchains</h2>
+    <p class="sub">Downloads the full history of every address marked “Mine”. The first run for ~180 EVM addresses takes a while (roughly 30+ minutes). Responses are cached, so later runs are fast.</p>
+    <div class="small muted" id="fetchScope"></div>
+    <div class="checks" id="chainChecks"></div>
+    <label class="row small"><input type="checkbox" id="hl" checked> Hyperliquid (perps, spot, funding, deposits)</label>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="fetchBtn">Start fetch</button>
+      <button class="btn" id="cancelBtn">Cancel</button>
+    </div>
+  </div>
+  <div class="card" id="jobCard">
+    <h2>Progress</h2>
+    <div class="progress"><div id="bar"></div></div>
+    <div class="small muted" id="jobLabel">Nothing running.</div>
+    <pre class="log" id="log"></pre>
+    <div id="failWrap" style="display:none">
+      <h2 style="margin-top:14px">Fetch failures <span class="badge warn" id="failN"></span></h2>
+      <p class="sub">Data for these is missing. Results will be incomplete until they are resolved.</p>
+      <pre class="log" id="fails"></pre>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Data on disk</h2>
+    <div class="tablewrap"><table><thead><tr><th>Source</th><th class="num">Movements</th></tr></thead><tbody id="dataBody"></tbody></table></div>
+  </div>
+</section>
+
+<!-- ============ RESULTS ============ -->
+<section class="tab" id="tab-results">
+  <div class="card">
+    <div class="row">
+      <label>Tax year <select id="year"></select></label>
+      <button class="btn primary" id="runBtn">Calculate</button>
+      <span class="small muted" id="genAt"></span>
+      <span style="flex:1"></span>
+      <span class="small" id="downloads"></span>
+    </div>
+  </div>
+  <div id="noResults" class="card muted">No results for this year yet. Fetch data, then press Calculate.</div>
+  <div id="resultsBody" style="display:none">
+    <div class="stats" id="stats"></div>
+    <div class="grid2">
+      <div class="card"><h2>Where the gains and losses come from</h2>
+        <table><thead><tr><th>Bucket</th><th class="num">USD</th></tr></thead><tbody id="buckets"></tbody></table></div>
+      <div class="card"><h2>Needs review</h2><p class="sub">Click a row to see those items.</p>
+        <table><thead><tr><th>Reason</th><th class="num">Items</th><th class="num">USD</th></tr></thead><tbody id="reasons"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="subtabs">
+        <button data-sub="review" class="on">Review list</button>
+        <button data-sub="disposals">Sales (Form 8949 rows)</button>
+        <button data-sub="accounts">By account</button>
+        <button data-sub="holdings">Holdings on Jan 1</button>
+      </div>
+      <div id="reasonHelp" class="small muted" style="margin-bottom:8px"></div>
+      <div class="row" id="tableTools" style="margin-bottom:10px">
+        <input type="search" id="tq" placeholder="Search token, account, tx…" style="flex:1; min-width:180px">
+        <select id="treason"></select>
+      </div>
+      <div class="tablewrap"><table id="rtable"></table></div>
+      <div class="pager" id="pager"></div>
+    </div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+// Token names come from the blockchain and can contain anything, so every
+// value placed into HTML goes through esc().
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = v => { const n = Number(v); if (!isFinite(n)) return ""; return (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+const signed = v => `<span class="${Number(v) < 0 ? "neg" : Number(v) > 0 ? "pos" : ""}">${money(v)}</span>`;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 3000); }
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({error: `HTTP ${r.status}`}));
+  if (j && j.error) { toast(j.error); throw new Error(j.error); }
+  return j;
+}
+
+const REASONS = {
+  missing_basis: "Sold or moved more than this wallet held. The excess got $0 cost basis, which turns real losses into fake gains. Usually means a missing wallet, a missing exchange, or history before the data starts.",
+  unmatched_out: "Sent to an address not on your list. No gain or loss was booked. If the address is yours, add it; if it was a payment, it is a taxable sale.",
+  unmatched_in: "Received from an address not on your list. Cost basis set to market value. If it came from your own wallet, add that wallet; if it was an airdrop or reward, it is income.",
+  unpriced_in: "No USD price found. Usually spam tokens. Basis $0.",
+  unpriced_swap: "Neither side of the swap had a price, so $0 was used.",
+  unpriced_fee: "Gas token had no price.",
+  unpriced_income: "Income with no price.",
+  unhandled: "An event type the tool does not handle yet. Not included in totals.",
+};
+const reasonKey = r => (r || "").split(":")[0].split(" ")[0];
+
+// ---------------------------------------------------------------- state
+let S = null;          // /api/state
+let sel = new Set();   // selected wallet addresses
+let poll = null;
+
+async function refresh() {
+  S = await api("/api/state");
+  renderKey(); renderWallets(); renderChains(); renderData(); renderJob(S.job);
+  const years = new Set([2025, ...S.data.result_years]);
+  const ysel = $("#year"), cur = ysel.value || "2025";
+  ysel.innerHTML = [...years].sort().reverse().map(y => `<option ${String(y) === cur ? "selected" : ""}>${y}</option>`).join("");
+  if (S.job.status === "running") startPolling();
+}
+
+// ---------------------------------------------------------------- tabs
+$$("nav button").forEach(b => b.onclick = () => {
+  $$("nav button").forEach(x => x.classList.toggle("on", x === b));
+  $$("section.tab").forEach(s => s.classList.toggle("on", s.id === "tab-" + b.dataset.tab));
+  if (b.dataset.tab === "results") loadResults();
+});
+
+// ---------------------------------------------------------------- wallets
+function renderKey() {
+  $("#keyState").textContent = S.settings.has_key ? `Saved (${S.settings.key_hint}).` : "No key saved yet.";
+}
+$("#saveKey").onclick = async () => {
+  const k = $("#key").value.trim(); if (!k) return;
+  await api("/api/settings", {etherscan_key: k}); $("#key").value = ""; toast("Key saved"); refresh();
+};
+$("#importBtn").onclick = async () => {
+  const r = await api("/api/wallets/import", {text: $("#paste").value, role: $("#importRole").value});
+  toast(`Parsed ${r.parsed}: ${r.added} new, ${r.changed} status changed. ${r.total} total.`); $("#paste").value = ""; refresh();
+};
+
+function renderWallets() {
+  const ws = S.wallets, counts = {};
+  ws.forEach(w => counts[w.kind] = (counts[w.kind] || 0) + 1);
+  const kinds = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const rc = {mine: 0, unsure: 0, not_mine: 0}; ws.forEach(w => rc[w.role] = (rc[w.role] || 0) + 1);
+  $("#kindChips").innerHTML = `<span class="chip"><b>Mine ${rc.mine}</b></span><span class="chip">Not sure ${rc.unsure}</span><span class="chip">Not mine ${rc.not_mine}</span>` + kinds.map(k => {
+    const on = S.supported.includes(k);
+    return `<span class="chip ${on ? "" : "off"}">${esc(k)}: ${counts[k]}${on ? "" : " · not read yet"}</span>`;
+  }).join("") || `<span class="muted small">No addresses yet.</span>`;
+  const ksel = $("#wkind"), kcur = ksel.value;
+  ksel.innerHTML = `<option value="">All types</option>` + kinds.map(k => `<option ${k === kcur ? "selected" : ""}>${esc(k)}</option>`).join("");
+  drawWalletRows();
+}
+function filteredWallets() {
+  const q = $("#wq").value.toLowerCase(), k = $("#wkind").value, r = $("#wrole").value;
+  return S.wallets.filter(w => (!k || w.kind === k) && (!r || w.role === r) &&
+    (!q || w.address.toLowerCase().includes(q) || (w.label || "").toLowerCase().includes(q)));
+}
+function drawWalletRows() {
+  const rows = filteredWallets();
+  $("#wbody").innerHTML = rows.map(w => `
+    <tr data-a="${esc(w.address)}">
+      <td><input type="checkbox" class="wsel" ${sel.has(w.address) ? "checked" : ""}></td>
+      <td class="mono">${esc(w.address)}</td>
+      <td><span class="badge ${S.supported.includes(w.kind) ? "" : "warn"}">${esc(w.kind)}</span></td>
+      <td><input type="text" class="wlabel" value="${esc(w.label)}" placeholder="label" style="width:100%; min-width:120px"></td>
+      <td><select class="wrole">
+        <option value="mine" ${w.role === "mine" ? "selected" : ""}>Mine</option>
+        <option value="unsure" ${w.role === "unsure" ? "selected" : ""}>Not sure</option>
+        <option value="not_mine" ${w.role === "not_mine" ? "selected" : ""}>Not mine</option></select></td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No matching addresses.</td></tr>`;
+  $("#selCount").textContent = `${sel.size} selected`;
+}
+["#wq", "#wkind", "#wrole"].forEach(s => $(s).addEventListener("input", drawWalletRows));
+$("#wbody").addEventListener("change", async e => {
+  const tr = e.target.closest("tr"); if (!tr) return; const a = tr.dataset.a;
+  if (e.target.classList.contains("wsel")) { e.target.checked ? sel.add(a) : sel.delete(a); $("#selCount").textContent = `${sel.size} selected`; return; }
+  const w = S.wallets.find(x => x.address === a);
+  if (e.target.classList.contains("wrole")) { w.role = e.target.value; await api("/api/wallets/update", {addresses: [a], role: w.role}); }
+  if (e.target.classList.contains("wlabel")) { w.label = e.target.value; await api("/api/wallets/update", {addresses: [a], label: w.label}); }
+});
+$("#selAll").onchange = e => { filteredWallets().forEach(w => e.target.checked ? sel.add(w.address) : sel.delete(w.address)); drawWalletRows(); };
+$$("[data-bulk]").forEach(b => b.onclick = async () => {
+  if (!sel.size) return toast("Select addresses first");
+  const addresses = [...sel];
+  if (b.dataset.bulk === "delete") {
+    if (!confirm(`Remove ${addresses.length} addresses from the list?`)) return;
+    await api("/api/wallets/delete", {addresses});
+  } else await api("/api/wallets/update", {addresses, role: b.dataset.bulk});
+  sel.clear(); $("#selAll").checked = false; refresh();
+});
+
+// ---------------------------------------------------------------- fetch
+function renderChains() {
+  const box = $("#chainChecks");
+  if (!box.children.length) box.innerHTML = S.chains.map(c =>
+    `<label class="small"><input type="checkbox" class="chain" value="${c.id}" checked> ${esc(c.name)}</label>`).join("");
+  const mine = S.wallets.filter(w => w.role === "mine");
+  const evm = mine.filter(w => S.supported.includes(w.kind)).length;
+  $("#fetchScope").textContent = `${evm} of your ${mine.length} addresses can be read today (EVM). Other types are listed on the Wallets tab.`;
+}
+$("#fetchBtn").onclick = async () => {
+  const chains = $$(".chain:checked").map(c => Number(c.value));
+  await api("/api/fetch", {chains, hyperliquid: $("#hl").checked}); startPolling();
+};
+$("#cancelBtn").onclick = () => api("/api/cancel", {});
+function renderData() {
+  const f = S.data.movement_files, keys = Object.keys(f);
+  $("#dataBody").innerHTML = keys.map(k => `<tr><td>${esc(k)}</td><td class="num">${f[k].toLocaleString()}</td></tr>`).join("")
+    || `<tr><td colspan="2" class="muted">Nothing fetched yet.</td></tr>`;
+}
+function renderJob(j) {
+  const running = j.status === "running";
+  $("#fetchBtn").disabled = running; $("#runBtn").disabled = running; $("#cancelBtn").disabled = !running;
+  $("#bar").style.width = j.total ? `${(100 * j.done / j.total).toFixed(1)}%` : (j.status === "done" ? "100%" : "0");
+  $("#jobLabel").textContent = j.status === "idle" ? "Nothing running." :
+    `${j.kind} · ${j.status}${j.total ? ` · ${j.done}/${j.total}` : ""}${j.label ? " · " + j.label : ""}`;
+  const log = $("#log"), atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 5;
+  log.textContent = j.log.join("\n"); if (atBottom) log.scrollTop = log.scrollHeight;
+  $("#failWrap").style.display = j.failures.length ? "block" : "none";
+  $("#failN").textContent = j.failures.length; $("#fails").textContent = j.failures.join("\n");
+  const b = $("#banner");
+  b.classList.toggle("on", running);
+  b.textContent = running ? `${j.kind === "fetch" ? "Fetching" : "Calculating"}… ${j.total ? Math.floor(100 * j.done / j.total) + "%" : ""} ${j.label || ""}` : "";
+}
+function startPolling() {
+  if (poll) return;
+  poll = setInterval(async () => {
+    const j = await api("/api/job"); renderJob(j);
+    if (j.status !== "running") {
+      clearInterval(poll); poll = null; await refresh();
+      if (j.kind === "report" && j.status === "done") { toast("Calculation finished"); loadResults(); }
+      if (j.kind === "fetch" && j.status === "done") toast(j.failures.length ? `Fetch done with ${j.failures.length} failures` : "Fetch done");
+    }
+  }, 1000);
+}
+
+// ---------------------------------------------------------------- results
+let R = null, sub = "review", page = 0, sort = "", desc = true;
+const PAGE = 100;
+$("#runBtn").onclick = async () => { await api("/api/report", {year: Number($("#year").value)}); startPolling(); };
+$("#year").onchange = loadResults;
+
+async function loadResults() {
+  const year = $("#year").value || 2025;
+  R = await api(`/api/results?year=${year}`);
+  $("#noResults").style.display = R ? "none" : "block";
+  $("#resultsBody").style.display = R ? "block" : "none";
+  $("#downloads").innerHTML = R ? ["disposals", "review", "summary"].map(n =>
+    `<a href="/download/${n}_${year}.${n === "summary" ? "md" : "csv"}">${n}</a>`).join(" · ") : "";
+  if (!R) return;
+  $("#genAt").textContent = `Calculated ${R.generated.replace("T", " ")}`;
+  const stat = (k, v, note = "", cls = "") => `<div class="stat ${cls}"><div class="k">${k}</div><div class="v">${v}</div>${note ? `<div class="note">${note}</div>` : ""}</div>`;
+  $("#stats").innerHTML =
+    stat("Net realized", signed(R.net), `${R.disposal_count.toLocaleString()} lot sales`) +
+    stat("Short-term", signed(R.short_term)) +
+    stat("Long-term", signed(R.long_term)) +
+    stat("Perps (PnL + funding)", signed(R.perp)) +
+    stat("Sold with $0 basis", money(R.missing_basis_proceeds), "Gains here may really be losses", R.missing_basis_proceeds > 0 ? "warn" : "") +
+    stat("Items to review", R.review_count.toLocaleString(), `${R.transfers_matched.toLocaleString()} own-wallet transfers matched`);
+  $("#buckets").innerHTML = Object.entries(R.buckets).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${signed(v)}</td></tr>`).join("");
+  $("#reasons").innerHTML = R.review_reasons.map(r => `<tr class="rs" data-r="${esc(r.reason)}" style="cursor:pointer" title="${esc(REASONS[reasonKey(r.reason)] || "")}">
+    <td>${esc(r.reason)}</td><td class="num">${r.count.toLocaleString()}</td><td class="num">${money(r.usd)}</td></tr>`).join("")
+    || `<tr><td colspan="3" class="muted">Nothing to review.</td></tr>`;
+  $$("#reasons tr.rs").forEach(tr => tr.onclick = () => { setSub("review"); $("#treason").value = tr.dataset.r; page = 0; drawTable(); });
+  const rsel = $("#treason");
+  rsel.innerHTML = `<option value="">All reasons</option>` + R.review_reasons.map(r => `<option>${esc(r.reason)}</option>`).join("");
+  drawTable();
+}
+function setSub(s) {
+  sub = s; page = 0; sort = ""; $$(".subtabs button").forEach(b => b.classList.toggle("on", b.dataset.sub === s));
+}
+$$(".subtabs button").forEach(b => b.onclick = () => { setSub(b.dataset.sub); drawTable(); });
+let tqTimer; $("#tq").addEventListener("input", () => { clearTimeout(tqTimer); tqTimer = setTimeout(() => { page = 0; drawTable(); }, 250); });
+$("#treason").onchange = () => { page = 0; drawTable(); };
+
+const COLS = {
+  review: [["date", "Date"], ["account", "Account"], ["asset", "Asset"], ["qty", "Qty", "num"], ["usd", "USD", "num"], ["reason", "Reason"], ["tx", "Tx"]],
+  disposals: [["description", "Sold"], ["date_acquired", "Acquired"], ["date_sold", "Date sold"], ["proceeds", "Proceeds", "num"],
+    ["cost_basis", "Basis", "num"], ["gain_loss", "Gain/loss", "num"], ["term", "Term"], ["kind", "Kind"], ["account", "Account"], ["flags", "Flags"]],
+};
+function cell(key, v) {
+  if (key === "usd" || key === "proceeds" || key === "cost_basis") return v === "" ? `<span class="muted">none</span>` : money(v);
+  if (key === "gain_loss") return signed(v);
+  if (key === "date") return esc(v.slice(0, 16).replace("T", " "));
+  if (key === "flags") return v ? v.split(";").map(f => `<span class="badge warn">${esc(f)}</span>`).join(" ") : "";
+  if (key === "reason") return `<span title="${esc(REASONS[reasonKey(v)] || "")}">${esc(v)}</span>`;
+  if (key === "tx" || key === "account") return `<span class="mono">${esc(v)}</span>`;
+  return esc(v);
+}
+async function drawTable() {
+  if (!R) return;
+  const t = $("#rtable");
+  $("#tableTools").style.display = (sub === "review" || sub === "disposals") ? "flex" : "none";
+  $("#treason").style.display = sub === "review" ? "" : "none";
+  $("#reasonHelp").textContent = sub === "review" ? (REASONS[reasonKey($("#treason").value)] || "Largest dollar amounts first. Hover a reason for an explanation.") :
+    sub === "holdings" ? "What each wallet held at the start of the year, with its cost basis. Under the 2025 wallet-by-wallet rules this is your starting position." : "";
+  if (sub === "accounts") {
+    t.innerHTML = `<thead><tr><th>Account</th><th class="num">Net gain/loss</th></tr></thead><tbody>` +
+      R.by_account.map(a => `<tr><td class="mono">${esc(a.account)}</td><td class="num">${signed(a.net)}</td></tr>`).join("") + "</tbody>";
+    $("#pager").innerHTML = ""; return;
+  }
+  if (sub === "holdings") {
+    const rows = R.holdings_snapshot.rows;
+    t.innerHTML = `<thead><tr><th>Account</th><th>Asset</th><th class="num">Qty</th><th class="num">Basis</th></tr></thead><tbody>` +
+      (rows.map(r => `<tr><td class="mono">${esc(r.account)}</td><td>${esc(r.asset)}</td><td class="num">${esc(r.qty)}</td><td class="num">${money(r.basis)}</td></tr>`).join("")
+       || `<tr><td colspan="4" class="muted">No holdings recorded.</td></tr>`) + "</tbody>";
+    $("#pager").innerHTML = ""; return;
+  }
+  const p = new URLSearchParams({year: $("#year").value, table: sub, q: $("#tq").value, reason: sub === "review" ? $("#treason").value : "",
+    sort, desc: desc ? "1" : "0", offset: page * PAGE, limit: PAGE});
+  const d = await api("/api/rows?" + p);
+  const cols = COLS[sub];
+  t.innerHTML = `<thead><tr>${cols.map(([k, l, c]) => `<th class="sort ${c || ""}" data-k="${k}">${l}${sort === k ? (desc ? " ↓" : " ↑") : ""}</th>`).join("")}</tr></thead><tbody>` +
+    (d.rows.map(r => `<tr>${cols.map(([k, , c]) => `<td class="${c || ""}">${cell(k, r[k] ?? "")}</td>`).join("")}</tr>`).join("")
+     || `<tr><td colspan="${cols.length}" class="muted">No rows.</td></tr>`) + "</tbody>";
+  $$("th.sort", t).forEach(th => th.onclick = () => { desc = sort === th.dataset.k ? !desc : true; sort = th.dataset.k; page = 0; drawTable(); });
+  const last = Math.max(0, Math.ceil(d.total / PAGE) - 1);
+  const sums = d.sums && d.sums.gain_loss !== undefined ? ` · filtered totals: proceeds ${money(d.sums.proceeds)}, basis ${money(d.sums.cost_basis)}, gain/loss ${signed(d.sums.gain_loss)}` : "";
+  $("#pager").innerHTML = `<span class="small">${d.total.toLocaleString()} rows${sums}</span>
+    <span class="row"><button class="btn" id="prev" ${page ? "" : "disabled"}>Prev</button>
+    <span class="small">Page ${page + 1} of ${last + 1}</span><button class="btn" id="next" ${page < last ? "" : "disabled"}>Next</button></span>`;
+  $("#prev").onclick = () => { page--; drawTable(); }; $("#next").onclick = () => { page++; drawTable(); };
+}
+
+window.addEventListener("unhandledrejection", e => e.preventDefault()); // api() already showed a toast
+refresh();
+</script>
+</body>
+</html>

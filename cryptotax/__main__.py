@@ -1,55 +1,22 @@
 """Usage:
-  python -m cryptotax wallets --wallets data/wallets.txt   # check how addresses were classified
-  python -m cryptotax fetch  --wallets data/wallets.txt [--chains 1,42161,...]
-  python -m cryptotax report --year 2025
+  python -m cryptotax ui                                    # browser app at http://127.0.0.1:8765
+  python -m cryptotax wallets --wallets data/wallets.txt    # check how addresses were classified
+  python -m cryptotax fetch   --wallets data/wallets.txt [--chains 1,42161,...]
+  python -m cryptotax report  --year 2025
 """
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import traceback
-from datetime import datetime, timezone
 
-from . import store, wallets
-from .engine import Engine
-from .pricing import price_movements
-from .report import write
-
-DEFAULT_CHAINS = [1, 42161, 10, 8453, 137, 59144, 534352, 324, 81457, 130, 57073, 480, 56, 43114, 5000, 100, 999]
+from . import pipeline, wallets
 
 
 def cmd_fetch(args) -> None:
-    from .sources import etherscan, hyperliquid
-    ws = wallets.load(args.wallets)
-    evm = [w for w in ws if w.kind == "evm"]
-    own = {w.address for w in evm}
-    print(f"{len(ws)} unique addresses -> {wallets.summary(ws)}")
-    if "ETHERSCAN_API_KEY" not in os.environ:
-        sys.exit("Set ETHERSCAN_API_KEY first (free key at https://etherscan.io/myapikey)")
-    chains = [int(c) for c in args.chains.split(",")] if args.chains else DEFAULT_CHAINS
-    failures = []
-    for chain in chains:
-        moves = []
-        for i, w in enumerate(evm):
-            try:
-                moves += etherscan.fetch_address(chain, w.address, own)
-            except Exception as e:  # keep going; report every gap at the end
-                failures.append(f"chain {chain} {w.address}: {e}")
-                if "chain" in str(e).lower() and "not supported" in str(e).lower():
-                    break
-            print(f"\rchain {chain}: {i + 1}/{len(evm)} addresses, {len(moves)} movements", end="", flush=True)
-        print()
-        store.save(f"evm_{chain}", moves)
-    if not args.skip_hyperliquid:
-        moves = []
-        for w in evm:
-            try:
-                moves += hyperliquid.fetch_address(w.address, own)
-            except Exception as e:
-                failures.append(f"hyperliquid {w.address}: {e}")
-        print(f"hyperliquid: {len(moves)} movements")
-        store.save("hyperliquid", moves)
+    ws = wallets.load(args.wallets) if args.wallets else wallets.owned()
+    chains = [int(c) for c in args.chains.split(",")] if args.chains else None
+    failures = pipeline.run_fetch(ws, pipeline.ConsoleProgress(), chains, hyperliquid=not args.skip_hyperliquid)
     if failures:
         print(f"\n{len(failures)} fetch failures (data is INCOMPLETE for these):", file=sys.stderr)
         for f in failures:
@@ -62,20 +29,22 @@ def cmd_wallets(args) -> None:
 
 
 def cmd_report(args) -> None:
-    moves = store.load_all()
-    print(f"{len(moves)} movements loaded; pricing...")
-    price_movements(moves)
-    snap = datetime(args.year, 1, 1, tzinfo=timezone.utc)
-    result = Engine([snap]).run(moves)
-    path = write(result, args.year, snapshot=snap)
-    print(f"wrote {path} and out/disposals_{args.year}.csv, out/review_{args.year}.csv")
+    pipeline.run_report(args.year, pipeline.ConsoleProgress())
+
+
+def cmd_ui(args) -> None:
+    from .ui.server import serve
+    serve(args.port, open_browser=not args.no_browser)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(prog="cryptotax")
     sub = p.add_subparsers(dest="cmd", required=True)
+    u = sub.add_parser("ui")
+    u.add_argument("--port", type=int, default=8765)
+    u.add_argument("--no-browser", action="store_true")
     f = sub.add_parser("fetch")
-    f.add_argument("--wallets", required=True)
+    f.add_argument("--wallets", help="address list file (default: the wallet book saved by the UI)")
     f.add_argument("--chains", help="comma-separated chain ids (default: common EVM chains)")
     f.add_argument("--skip-hyperliquid", action="store_true")
     sub.add_parser("wallets").add_argument("--wallets", required=True)
@@ -83,7 +52,7 @@ def main() -> None:
     r.add_argument("--year", type=int, default=2025)
     args = p.parse_args()
     try:
-        {"fetch": cmd_fetch, "wallets": cmd_wallets, "report": cmd_report}[args.cmd](args)
+        {"fetch": cmd_fetch, "wallets": cmd_wallets, "report": cmd_report, "ui": cmd_ui}[args.cmd](args)
     except KeyboardInterrupt:
         sys.exit(130)
     except Exception:

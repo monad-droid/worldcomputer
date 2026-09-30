@@ -15,8 +15,22 @@ guessed formats).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export ETHERSCAN_API_KEY=...   # free key at etherscan.io/myapikey; one key covers all chains
 ```
+
+Get a free Etherscan key at etherscan.io/myapikey; one key covers all chains. The app stores it in `data/settings.json`; the command line reads `ETHERSCAN_API_KEY`.
+
+### The app (recommended)
+
+```bash
+python -m cryptotax ui
+```
+
+This opens http://127.0.0.1:8765 in your browser. It runs only on your computer.
+1. **Wallets**: paste your Etherscan key and your addresses, and mark each one Mine / Not sure / Not mine.
+2. **Fetch**: pick chains, then press Start. Progress and any failures show live.
+3. **Results**: press Calculate. Totals, the review list, Form 8949 rows, per-account nets and Jan 1 holdings, with CSV downloads.
+
+### Command line (same engine)
 
 Put your addresses in `data/wallets.txt`, one per line (optional label after
 a comma). 0x addresses are scanned on every chain in `DEFAULT_CHAINS` and on

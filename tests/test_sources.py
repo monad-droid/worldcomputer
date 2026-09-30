@@ -54,3 +54,12 @@ def test_wallet_list_parsing(tmp_path):
                  "celestia1zzk0uspdesu5v0lxh9kyw6v0l6etn5vvaqtpye\n")
     ws = load(p)
     assert [(w.kind, w.label) for w in ws] == [("evm", "main"), ("solana", ""), ("bitcoin", ""), ("cosmos", "")]
+
+
+def test_wallet_book_roles(tmp_path, monkeypatch):
+    from cryptotax import wallets
+    monkeypatch.setattr(wallets, "BOOK", tmp_path / "wallets.json")
+    wallets.merge_into_book(wallets.parse_text(f"{A}\n{B}"), "unsure")
+    added, changed, total = wallets.merge_into_book(wallets.parse_text(A), "mine")
+    assert (added, changed, total) == (0, 1, 2)
+    assert [w.address for w in wallets.owned()] == [A]
