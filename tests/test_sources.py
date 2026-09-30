@@ -48,7 +48,9 @@ def test_hyperliquid_perp_fill_and_deposit():
 
 def test_wallet_list_parsing(tmp_path):
     p = tmp_path / "w.txt"
-    p.write_text(f"address,label\n{A.upper().replace('0X', '0x')}, main\n{A}\n"
-                 "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\njunk\n")
+    p.write_text(f"to_address\n{A.upper().replace('0X', '0x')}, main\n{A}\n"
+                 "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU\n"
+                 "14TdRdcgL7moCpokNAr8nVqeB9ktYvuGX1\n"  # bitcoin, same length range as solana
+                 "celestia1zzk0uspdesu5v0lxh9kyw6v0l6etn5vvaqtpye\n")
     ws = load(p)
-    assert [(w.kind, w.label) for w in ws] == [("evm", "main"), ("solana", "")]
+    assert [(w.kind, w.label) for w in ws] == [("evm", "main"), ("solana", ""), ("bitcoin", ""), ("cosmos", "")]

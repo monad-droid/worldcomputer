@@ -1,10 +1,12 @@
 """Usage:
+  python -m cryptotax wallets --wallets data/wallets.txt   # check how addresses were classified
   python -m cryptotax fetch  --wallets data/wallets.txt [--chains 1,42161,...]
   python -m cryptotax report --year 2025
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import traceback
 from datetime import datetime, timezone
@@ -22,7 +24,9 @@ def cmd_fetch(args) -> None:
     ws = wallets.load(args.wallets)
     evm = [w for w in ws if w.kind == "evm"]
     own = {w.address for w in evm}
-    print(f"{len(evm)} EVM addresses, {len(ws) - len(evm)} Solana (Solana fetch not built yet)")
+    print(f"{len(ws)} unique addresses -> {wallets.summary(ws)}")
+    if "ETHERSCAN_API_KEY" not in os.environ:
+        sys.exit("Set ETHERSCAN_API_KEY first (free key at https://etherscan.io/myapikey)")
     chains = [int(c) for c in args.chains.split(",")] if args.chains else DEFAULT_CHAINS
     failures = []
     for chain in chains:
@@ -52,6 +56,11 @@ def cmd_fetch(args) -> None:
             print("  " + f, file=sys.stderr)
 
 
+def cmd_wallets(args) -> None:
+    ws = wallets.load(args.wallets)
+    print(f"{len(ws)} unique addresses -> {wallets.summary(ws)}")
+
+
 def cmd_report(args) -> None:
     moves = store.load_all()
     print(f"{len(moves)} movements loaded; pricing...")
@@ -69,11 +78,12 @@ def main() -> None:
     f.add_argument("--wallets", required=True)
     f.add_argument("--chains", help="comma-separated chain ids (default: common EVM chains)")
     f.add_argument("--skip-hyperliquid", action="store_true")
+    sub.add_parser("wallets").add_argument("--wallets", required=True)
     r = sub.add_parser("report")
     r.add_argument("--year", type=int, default=2025)
     args = p.parse_args()
     try:
-        {"fetch": cmd_fetch, "report": cmd_report}[args.cmd](args)
+        {"fetch": cmd_fetch, "wallets": cmd_wallets, "report": cmd_report}[args.cmd](args)
     except KeyboardInterrupt:
         sys.exit(130)
     except Exception:
