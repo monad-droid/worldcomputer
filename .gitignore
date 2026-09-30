@@ -1,0 +1,9 @@
+# Private financial data never goes in git
+data/
+out/
+*.csv
+!tests/fixtures/*.csv
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
